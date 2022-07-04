@@ -1,0 +1,1544 @@
+---
+title: "Proyecto Final R"
+author: "Estuardo Funes Solares 20032042"
+date: '2022-06-27'
+output: html_document
+---
+
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(modelr)
+library(PerformanceAnalytics)
+library(corrplot)
+library(caret)
+library(car)
+library(randomForest)
+```
+
+
+
+# Carga de Data Set, tanto train como test
+```{r}
+data_test<- read.csv(file = "test.csv", header = T, sep = ",", dec = ".")
+data_train<- read.csv(file = "train.csv", header = T, sep = ",", dec = ".")
+
+
+data_validacion<-
+data_test
+
+
+```
+
+#Validar el que estemos trabajando con un DataFrame
+```{r}
+class(data_train)
+class(data_test)
+```
+
+
+#Structure de los data sets para ver cantidad de observaciones, variables, así como tipo y cada una
+```{r}
+str(data_train)
+str(data_test)
+```
+
+
+#Hacemos un summary al data train para ver el resumen estadístico de cada variable
+```{r}
+summary(data_train)
+
+#Podemos ver que únicamente la variable Total_bedrooms tiene valores NA´S (143 registros)
+```
+
+
+```{r}
+summary(data_test)
+#Podemos ver que únicamente la variable Total_bedrooms tiene valores NA´S (64 registros)
+```
+
+
+#Variables con Na´s en Data_Train
+```{r}
+colsNA<-colnames(data_train)[!complete.cases(t(data_train))]
+colsNA
+```
+
+
+#Porcentaje de Na´s
+```{r}
+sum(is.na(data_train$total_bedrooms))/length(data_train$total_bedrooms)
+
+#Porcentajes de NA´s en la columna Total_bedrooms, menos del 1%.
+```
+
+
+#Debido a que son muy pocos registros no llega ni al 1% hacemos imputación de la media.
+```{r}
+incomplete<-data_train[colsNA]
+incomplete
+
+#Vemos que es una columna de integer por lo que aplicamos imputación de la media
+```
+
+
+#Imputación de Media en Data Train
+```{r}
+data_train$total_bedrooms<-ifelse(is.na(data_train$total_bedrooms),
+                                        mean(data_train$total_bedrooms, na.rm = T),
+                                        data_train$total_bedrooms)
+
+summary(data_train)
+```
+
+
+
+#Variables con Na´s en Data_Test
+```{r}
+colsNA<-colnames(data_test)[!complete.cases(t(data_test))]
+colsNA
+```
+
+
+#Porcentaje de Na´s
+```{r}
+sum(is.na(data_test$total_bedrooms))/length(data_test$total_bedrooms)
+
+#Porcentajes de NA´s en la columna Total_bedrooms, menos del 1%.
+```
+
+
+#Debido a que son muy pocos registros no llega ni al 1% hacemos imputación de la media.
+```{r}
+incomplete<-data_test[colsNA]
+incomplete
+
+#Vemos que es una columna de integer por lo que aplicamos imputación de la media
+```
+
+
+#Imputación de Media de Data Test
+```{r}
+data_test$total_bedrooms<-ifelse(is.na(data_test$total_bedrooms),
+                                        mean(data_test$total_bedrooms, na.rm = T),
+                                        data_test$total_bedrooms)
+
+summary(data_test)
+```
+
+
+#Imputación de Variables Categóricas en Data_Train
+```{r}
+table(data_train$ocean_proximity)
+```
+
+
+
+#Códificación de Variables Categóricas - Frecuency Encoder
+```{r}
+Codificacion_Var_Cat<-data_train %>%
+  group_by(ocean_proximity) %>%
+  summarise(FreqVal = n()) %>%
+  arrange(-FreqVal)
+Codificacion_Var_Cat
+```
+
+```{r}
+data_train<-merge(data_train, Codificacion_Var_Cat, 
+                  by.x = "ocean_proximity", 
+                  by.y = "ocean_proximity") %>%
+  select(-ocean_proximity)
+colnames(data_train)[colnames(data_train) == "FreqVal"] <- "ocean_proximity"
+```
+
+
+
+
+```{r}
+summary(data_train)
+```
+
+
+
+#Imputación de Variables Categóricas en Data_Test
+```{r}
+table(data_test$ocean_proximity)
+```
+
+#Códificación de Variables Categóricas - Frecuency Encoder
+```{r}
+Codificacion_Var_Cat_test<-data_test %>%
+  group_by(ocean_proximity) %>%
+  summarise(FreqValTest = n()) %>%
+  arrange(-FreqValTest)
+Codificacion_Var_Cat_test
+```
+
+
+
+
+
+
+```{r}
+data_test<-merge(data_test, Codificacion_Var_Cat_test, 
+                  by.x = "ocean_proximity", 
+                  by.y = "ocean_proximity") %>%
+  select(-ocean_proximity)
+colnames(data_test)[colnames(data_test) == "FreqValTest"] <- "ocean_proximity"
+```
+
+
+
+```{r}
+summary(data_test)
+```
+
+#Matrix de Correlación
+```{r}
+paleta<-colorRampPalette(c("blue", "steel blue", "dark blue"))(200)
+corrplot(cor(data_train), 
+         method = "number", 
+         type = "upper", 
+         col.lim = NULL, 
+         col=paleta)
+
+
+#Vemos que las mejores variables que tienen correlación con la variable a predecir son: 
+  #Median_Income      (0.69)
+  #Total_rooms        (0.13)
+  #housing_median_age (0.11)
+```
+
+
+#Gráfica de Correlación
+```{r}
+chart.Correlation(data_train, histogram = T, cex=1)
+```
+
+
+
+
+
+
+
+
+#Outliers de Variable en Data Train y Data Test
+```{r}
+boxplot(data_train)
+boxplot(data_test)
+```
+
+
+#Outliers de Variable en Data Train
+```{r}
+boxplot(data_train$housing_median_age, horizontal = TRUE)
+boxplot(data_train$total_rooms, horizontal = TRUE)
+boxplot(data_train$total_bedrooms, horizontal = TRUE)
+boxplot(data_train$households, horizontal = TRUE)
+boxplot(data_train$median_income, horizontal = TRUE)
+```
+
+#Replace Outliers Total Rooms
+
+
+```{r}
+summary(data_train$total_rooms)
+```
+
+
+```{r}
+IQR_train_totalrooms<-IQR(data_train$total_rooms)
+
+LS_total_rooms_train <- quantile(data_train$total_rooms, probs = 0.75) + 1.75*IQR_train_totalrooms
+LI_total_rooms_train <- quantile(data_train$total_rooms, probs = 0.25) - 1.75*IQR_train_totalrooms
+```
+
+
+```{r}
+sort(data_train$total_rooms[data_train$total_rooms > LS_total_rooms_train])
+```
+
+
+
+```{r}
+data_train$total_rooms[data_train$total_rooms > LS_total_rooms_train] <- LS_total_rooms_train
+```
+
+
+```{r}
+boxplot(data_train$total_rooms, horizontal = TRUE)
+```
+
+
+#Replace Outliers Total Bedrooms
+```{r}
+summary(data_train$total_bedrooms)
+```
+
+
+```{r}
+IQR_train_totalbedrooms<-IQR(data_train$total_bedrooms)
+
+LS_total_bedrooms_train <- quantile(data_train$total_bedrooms, probs = 0.75) + 1.75*IQR_train_totalbedrooms
+LI_total_bedrooms_train <- quantile(data_train$total_bedrooms, probs = 0.25) - 1.75*IQR_train_totalbedrooms
+```
+
+
+
+```{r}
+sort(data_train$total_bedrooms[data_train$total_bedrooms > LS_total_bedrooms_train])
+```
+
+
+```{r}
+data_train$total_bedrooms[data_train$total_bedrooms > LS_total_bedrooms_train] <- LS_total_bedrooms_train
+```
+
+
+```{r}
+boxplot(data_train$total_bedrooms, horizontal = TRUE)
+```
+
+#Replace Outliers Households
+```{r}
+IQR_train_households<-IQR(data_train$households)
+
+LS_total_households_train <- quantile(data_train$households, probs = 0.75) + 1.75*IQR_train_households
+LI_total_households_train <- quantile(data_train$households, probs = 0.25) - 1.75*IQR_train_households
+```
+
+
+```{r}
+sort(data_train$households[data_train$households > LS_total_households_train])
+```
+
+
+
+```{r}
+data_train$households[data_train$households > LS_total_households_train] <- LS_total_households_train
+```
+
+
+```{r}
+boxplot(data_train$households, horizontal = TRUE)
+```
+
+
+
+
+
+
+#Replace Outliers Median Income
+```{r}
+IQR_train_medianincome<-IQR(data_train$median_income)
+
+LS_total_medianincome_train <- quantile(data_train$median_income, probs = 0.75) + 1.75*IQR_train_medianincome
+LI_total_medianincome_train <- quantile(data_train$median_income, probs = 0.25) - 1.75*IQR_train_medianincome
+```
+
+
+```{r}
+sort(data_train$median_income[data_train$median_income > LS_total_medianincome_train])
+```
+
+
+
+```{r}
+data_train$median_income[data_train$median_income > LS_total_medianincome_train] <- LS_total_medianincome_train
+```
+
+
+```{r}
+boxplot(data_train$median_income, horizontal = TRUE)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#Outliers de Variable en Data Test
+```{r}
+boxplot(data_test$housing_median_age, horizontal = TRUE)
+boxplot(data_test$total_rooms, horizontal = TRUE)
+boxplot(data_test$total_bedrooms, horizontal = TRUE)
+boxplot(data_test$households, horizontal = TRUE)
+boxplot(data_test$median_income, horizontal = TRUE)
+```
+
+
+
+#Replace Outliers Total Rooms
+```{r}
+summary(data_test$total_rooms)
+```
+
+
+```{r}
+IQR_test_totalrooms<-IQR(data_test$total_rooms)
+
+LS_test_total_rooms <- quantile(data_test$total_rooms, probs = 0.75) + 1.75*IQR_test_totalrooms
+LI_test_total_rooms <- quantile(data_test$total_rooms, probs = 0.25) - 1.75*IQR_test_totalrooms
+```
+
+
+```{r}
+sort(data_test$total_rooms[data_test$total_rooms > LS_test_total_rooms])
+```
+
+
+
+```{r}
+data_test$total_rooms[data_test$total_rooms > LS_test_total_rooms] <- LS_test_total_rooms
+```
+
+
+```{r}
+boxplot(data_test$total_rooms, horizontal = TRUE)
+```
+
+
+#Replace Outliers Total Bedrooms
+```{r}
+summary(data_test$total_bedrooms)
+```
+
+
+```{r}
+IQR_test_totalbedrooms<-IQR(data_test$total_bedrooms)
+
+LS_test_total_bedrooms <- quantile(data_test$total_bedrooms, probs = 0.75) + 1.75*IQR_test_totalbedrooms
+LI_test_total_bedrooms <- quantile(data_test$total_bedrooms, probs = 0.25) - 1.75*IQR_test_totalbedrooms
+```
+
+
+
+```{r}
+sort(data_test$total_bedrooms[data_test$total_bedrooms > LS_test_total_bedrooms])
+```
+
+
+```{r}
+data_test$total_bedrooms[data_test$total_bedrooms > LS_test_total_bedrooms] <- LS_test_total_bedrooms
+```
+
+
+```{r}
+boxplot(data_test$total_bedrooms, horizontal = TRUE)
+```
+
+#Replace Outliers Households
+```{r}
+IQR_test_totalhouseholds<-IQR(data_test$households)
+
+LS_test_total_households <- quantile(data_test$households, probs = 0.75) + 1.75*IQR_test_totalhouseholds
+LI_test_total_households <- quantile(data_test$households, probs = 0.25) - 1.75*IQR_test_totalhouseholds
+```
+
+
+```{r}
+sort(data_test$households[data_test$households > LS_test_total_households])
+```
+
+
+
+```{r}
+data_test$households[data_test$households > LS_test_total_households] <- LS_test_total_households
+```
+
+
+```{r}
+boxplot(data_test$households, horizontal = TRUE)
+```
+
+
+
+
+
+
+#Replace Outliers Median Income
+```{r}
+IQR_test_totalmedian_income<-IQR(data_test$median_income)
+
+LS_test_total_median_income <- quantile(data_test$median_income, probs = 0.75) + 1.75*IQR_test_totalmedian_income
+LI_test_total_median_income <- quantile(data_test$median_income, probs = 0.25) - 1.75*IQR_test_totalmedian_income
+```
+
+
+```{r}
+sort(data_test$median_income[data_test$median_income > LS_test_total_median_income])
+```
+
+
+
+```{r}
+data_test$median_income[data_test$median_income > LS_test_total_median_income] <- LS_test_total_median_income
+```
+
+
+```{r}
+boxplot(data_test$median_income, horizontal = TRUE)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+#Correlación entre Variables Data_train
+```{r}
+cor(data_train)
+```
+
+
+#Matrix de Correlación de Data Train
+```{r}
+paleta<-colorRampPalette(c("blue", "steel blue", "dark blue"))(200)
+corrplot(cor(data_train), 
+         method = "number", 
+         type = "upper", 
+         col.lim = NULL, 
+         col=paleta)
+
+
+#Vemos que las mejores variables que tienen correlación con la variable a predecir son: 
+  #Median_Income      (0.70)
+  #Total_rooms        (0.16)
+  #housing_median_age (0.13)
+```
+
+
+
+
+
+
+
+#Gráfica de Correlación
+```{r}
+chart.Correlation(data_train, histogram = T, cex=1)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#Variable Median_Income
+```{r}
+data_train %>%
+  ggplot(aes(x=median_income, y=..density..))+
+  geom_density(col="blue", lw=1)+
+  theme_minimal()
+```
+
+
+
+
+
+```{r}
+qqnorm(data_train$median_income, pch = 1, frame=FALSE)
+qqline(data_train$median_income, col="red", lwd=2)
+```
+
+#Transformación Inversa
+
+```{r}
+data_train$median_income_inv<-1/(data_train$median_income)
+qqnorm(data_train$median_income_inv, pch = 1, frame = FALSE)
+qqline(data_train$median_income_inv, col="red", lwd=2)
+```
+
+
+
+#Transformación Polinomial
+```{r}
+data_train$median_income_cuad<-(data_train$median_income)^2
+qqnorm(data_train$median_income_cuad, pch = 1, frame = FALSE)
+qqline(data_train$median_income_cuad, col="red", lwd=2)
+```
+
+
+
+#Transformación Logaritmicas
+```{r}
+data_train$median_income_log<-log(data_train$median_income)
+qqnorm(data_train$median_income_log, pch = 1, frame = FALSE)
+qqline(data_train$median_income_log, col="red", lwd=2)
+```
+
+
+
+```{r}
+data_train %>%
+  ggplot(aes(x=median_income_log, y=..density..))+
+  geom_density(col="blue", lw=1)+
+  theme_minimal()
+```
+
+
+```{r}
+data_train %>%
+  ggplot(aes(x=total_rooms, y=..density..))+
+  geom_density(col="blue", lw=1)+
+  theme_minimal()
+```
+
+
+```{r}
+qqnorm(data_train$total_rooms, pch = 1, frame=FALSE)
+qqline(data_train$total_rooms, col="red", lwd=2)
+
+```
+
+
+
+#Transformación Inversa
+
+```{r}
+data_train$total_rooms_inv<-1/(data_train$total_rooms)
+qqnorm(data_train$total_rooms_inv, pch = 1, frame = FALSE)
+qqline(data_train$total_rooms_inv, col="red", lwd=2)
+```
+
+
+
+
+
+#Transformación Polinomial
+```{r}
+data_train$total_rooms_cuad<-(data_train$total_rooms)^2
+qqnorm(data_train$total_rooms_cuad, pch = 1, frame = FALSE)
+qqline(data_train$total_rooms_cuad, col="red", lwd=2)
+```
+
+
+#Transformación Logaritmicas
+```{r}
+data_train$total_rooms_log<-log(data_train$total_rooms)
+qqnorm(data_train$total_rooms_log, pch = 1, frame = FALSE)
+qqline(data_train$total_rooms_log, col="red", lwd=2)
+```
+
+
+```{r}
+data_train %>%
+  ggplot(aes(x=total_rooms_log, y=..density..))+
+  geom_density(col="blue", lw=1)+
+  theme_minimal()
+
+```
+
+
+```{r}
+data_train %>%
+  ggplot(aes(x=housing_median_age, y=..density..))+
+  geom_density(col="blue", lw=1)+
+  theme_minimal()
+```
+
+
+
+
+```{r}
+qqnorm(data_train$housing_median_age, pch = 1, frame=FALSE)
+qqline(data_train$housing_median_age, col="red", lwd=2)
+
+```
+
+
+#Transformación Inversa
+
+```{r}
+data_train$housing_median_age_inv<-1/(data_train$housing_median_age)
+qqnorm(data_train$housing_median_age_inv, pch = 1, frame = FALSE)
+qqline(data_train$housing_median_age_inv, col="red", lwd=2)
+```
+
+
+
+#Transformación Polinomial
+```{r}
+data_train$housing_median_age_cuad<-(data_train$housing_median_age)^2
+qqnorm(data_train$housing_median_age_cuad, pch = 1, frame = FALSE)
+qqline(data_train$housing_median_age_cuad, col="red", lwd=2)
+```
+
+#Transformación Logaritmicas
+```{r}
+data_train$housing_median_age_log<-log(data_train$housing_median_age)
+qqnorm(data_train$housing_median_age_log, pch = 1, frame = FALSE)
+qqline(data_train$housing_median_age_log, col="red", lwd=2)
+```
+
+```{r}
+data_train %>%
+  ggplot(aes(x=housing_median_age_log, y=..density..))+
+  geom_density(col="blue", lw=1)+
+  theme_minimal()
+```
+
+
+
+#Feature Scaling
+
+```{r}
+data_train %>%
+  ggplot(aes(x=median_income, y=..density..))+
+  geom_density(col="blue")+
+  geom_density(aes(x=total_rooms, y=..density..), col="red")
+
+```
+
+```{r}
+data_train$total_rooms_std<-(data_train$total_rooms_log - mean(data_train$total_rooms_log, na.rm = T))/sd(data_train$total_rooms_log)
+
+data_train$median_income_std<-(data_train$median_income_log - mean(data_train$median_income_log, na.rm = T))/sd(data_train$median_income_log)
+
+```
+
+
+
+
+```{r}
+data_train %>%
+  ggplot(aes(x=median_income_std, y=..density..))+
+  geom_density(col="blue")+
+  geom_density(aes(x=total_rooms_std, y=..density..), col="red")
+```
+
+
+
+```{r}
+data_train %>%
+  ggplot(aes(x=median_income_std, y=..density..))+
+  geom_density(col="blue")+
+  geom_density(aes(x=housing_median_age_log, y=..density..), col="red")
+```
+
+
+
+```{r}
+data_train$housing_median_age_std<-(data_train$housing_median_age_log - mean(data_train$housing_median_age_log, na.rm = T))/sd(data_train$housing_median_age_log)
+
+
+data_train$housing_median_age_std<-(data_train$housing_median_age_log - mean(data_train$housing_median_age_log, na.rm = T))/sd(data_train$housing_median_age_log)
+
+```
+
+
+```{r}
+data_train %>%
+  ggplot(aes(x=median_income_std, y=..density..))+
+  geom_density(col="blue")+
+  geom_density(aes(x=housing_median_age_std, y=..density..), col="red")
+```
+
+
+
+```{r}
+data_train %>%
+  ggplot(aes(x=total_rooms, y=..density..))+
+  geom_density(col="blue")+
+  geom_density(aes(x=housing_median_age, y=..density..), col="red")
+```
+
+
+
+```{r}
+data_train$total_rooms_std<-(data_train$total_rooms_log - mean(data_train$total_rooms_log, na.rm = T))/sd(data_train$total_rooms_log)
+
+data_train$housing_median_age_std<-(data_train$housing_median_age_log - mean(data_train$housing_median_age_log, na.rm = T))/sd(data_train$housing_median_age_log)
+```
+
+
+
+```{r}
+data_train %>%
+  ggplot(aes(x=total_rooms_std, y=..density..))+
+  geom_density(col="blue")+
+  geom_density(aes(x=housing_median_age_std, y=..density..), col="red")
+```
+
+
+
+```{r}
+data_train %>%
+  ggplot(aes(x=housing_median_age_std, y=..density..))+
+  geom_density(col="blue", lw=1)+
+  theme_minimal()
+```
+
+
+
+```{r}
+grafica1<-data_train %>%
+  ggplot(.,aes(median_income, median_house_value))+
+  geom_point()+
+  theme_minimal()
+
+grafica1
+```
+
+
+
+```{r}
+grafica2<-data_train %>%
+  ggplot(.,aes(x=total_rooms,y=median_house_value))+
+  geom_point()+
+  theme_minimal()
+
+grafica2
+```
+
+
+```{r}
+grafica3<-data_train %>%
+  ggplot(.,aes(housing_median_age, median_house_value))+
+  geom_point()+
+  theme_minimal()
+
+grafica3
+```
+
+
+#Correlación entre Variables Data_train
+```{r}
+cor(data_train)
+```
+
+
+#Matrix de Correlación de Data Train
+```{r}
+paleta<-colorRampPalette(c("blue", "steel blue", "dark blue"))(200)
+corrplot(cor(data_train), 
+         method = "number", 
+         type = "upper", 
+         col.lim = NULL, 
+         col=paleta)
+
+
+#Vemos que las mejores variables que tienen correlación con la variable a predecir son: 
+  #Median_Income      (0.70)
+  #Total_rooms        (0.16)
+  #housing_median_age (0.13)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+data_test %>%
+  ggplot(aes(x=median_income, y=..density..))+
+  geom_density(col="blue", lw=1)+
+  theme_minimal()
+```
+
+
+
+
+
+```{r}
+qqnorm(data_test$median_income, pch = 1, frame=FALSE)
+qqline(data_test$median_income, col="red", lwd=2)
+```
+
+#Transformación Inversa
+
+```{r}
+data_test$median_income_inv<-1/(data_test$median_income)
+qqnorm(data_test$median_income_inv, pch = 1, frame = FALSE)
+qqline(data_test$median_income_inv, col="red", lwd=2)
+```
+
+
+
+#Transformación Polinomial
+```{r}
+data_test$median_income_cuad<-(data_test$median_income)^2
+qqnorm(data_test$median_income_cuad, pch = 1, frame = FALSE)
+qqline(data_test$median_income_cuad, col="red", lwd=2)
+```
+
+
+
+#Transformación Logaritmicas
+```{r}
+data_test$median_income_log<-log(data_test$median_income)
+qqnorm(data_test$median_income_log, pch = 1, frame = FALSE)
+qqline(data_test$median_income_log, col="red", lwd=2)
+```
+
+
+
+```{r}
+data_test %>%
+  ggplot(aes(x=median_income_log, y=..density..))+
+  geom_density(col="blue", lw=1)+
+  theme_minimal()
+```
+
+
+```{r}
+data_test %>%
+  ggplot(aes(x=total_rooms, y=..density..))+
+  geom_density(col="blue", lw=1)+
+  theme_minimal()
+```
+
+
+```{r}
+qqnorm(data_test$total_rooms, pch = 1, frame=FALSE)
+qqline(data_test$total_rooms, col="red", lwd=2)
+
+```
+
+
+
+#Transformación Inversa
+
+```{r}
+data_test$total_rooms_inv<-1/(data_test$total_rooms)
+qqnorm(data_test$total_rooms_inv, pch = 1, frame = FALSE)
+qqline(data_test$total_rooms_inv, col="red", lwd=2)
+```
+
+
+
+
+
+#Transformación Polinomial
+```{r}
+data_test$total_rooms_cuad<-(data_test$total_rooms)^2
+qqnorm(data_test$total_rooms_cuad, pch = 1, frame = FALSE)
+qqline(data_test$total_rooms_cuad, col="red", lwd=2)
+```
+
+
+#Transformación Logaritmicas
+```{r}
+data_test$total_rooms_log<-log(data_test$total_rooms)
+qqnorm(data_test$total_rooms_log, pch = 1, frame = FALSE)
+qqline(data_test$total_rooms_log, col="red", lwd=2)
+```
+
+
+```{r}
+data_test %>%
+  ggplot(aes(x=total_rooms_log, y=..density..))+
+  geom_density(col="blue", lw=1)+
+  theme_minimal()
+
+```
+
+
+```{r}
+data_test %>%
+  ggplot(aes(x=housing_median_age, y=..density..))+
+  geom_density(col="blue", lw=1)+
+  theme_minimal()
+```
+
+
+
+
+```{r}
+qqnorm(data_test$housing_median_age, pch = 1, frame=FALSE)
+qqline(data_test$housing_median_age, col="red", lwd=2)
+
+```
+
+
+#Transformación Inversa
+
+```{r}
+data_test$housing_median_age_inv<-1/(data_test$housing_median_age)
+qqnorm(data_test$housing_median_age_inv, pch = 1, frame = FALSE)
+qqline(data_test$housing_median_age_inv, col="red", lwd=2)
+```
+
+
+
+#Transformación Polinomial
+```{r}
+data_test$housing_median_age_cuad<-(data_test$housing_median_age)^2
+qqnorm(data_test$housing_median_age_cuad, pch = 1, frame = FALSE)
+qqline(data_test$housing_median_age_cuad, col="red", lwd=2)
+```
+
+#Transformación Logaritmicas
+```{r}
+data_test$housing_median_age_log<-log(data_test$housing_median_age)
+qqnorm(data_test$housing_median_age_log, pch = 1, frame = FALSE)
+qqline(data_test$housing_median_age_log, col="red", lwd=2)
+```
+
+```{r}
+data_test %>%
+  ggplot(aes(x=housing_median_age_log, y=..density..))+
+  geom_density(col="blue", lw=1)+
+  theme_minimal()
+```
+
+
+
+#Feature Scaling
+
+```{r}
+data_test %>%
+  ggplot(aes(x=median_income_log, y=..density..))+
+  geom_density(col="blue")+
+  geom_density(aes(x=total_rooms_log, y=..density..), col="red")
+
+```
+
+```{r}
+data_test$total_rooms_std<-(data_test$total_rooms_log - mean(data_test$total_rooms_log, na.rm = T))/sd(data_test$total_rooms_log)
+
+data_test$median_income_std<-(data_test$median_income_log - mean(data_test$median_income_log, na.rm = T))/sd(data_test$median_income_log)
+
+```
+
+
+
+
+```{r}
+data_test %>%
+  ggplot(aes(x=median_income_std, y=..density..))+
+  geom_density(col="blue")+
+  geom_density(aes(x=total_rooms_std, y=..density..), col="red")
+```
+
+
+
+```{r}
+data_test %>%
+  ggplot(aes(x=median_income_log, y=..density..))+
+  geom_density(col="blue")+
+  geom_density(aes(x=housing_median_age_log, y=..density..), col="red")
+```
+
+
+
+```{r}
+data_test$housing_median_age_std<-(data_test$housing_median_age_log - mean(data_test$housing_median_age_log, na.rm = T))/sd(data_test$housing_median_age_log)
+
+
+data_test$housing_median_age_std<-(data_test$housing_median_age_log - mean(data_test$housing_median_age_log, na.rm = T))/sd(data_test$housing_median_age_log)
+
+```
+
+
+```{r}
+data_test %>%
+  ggplot(aes(x=median_income, y=..density..))+
+  geom_density(col="blue")+
+  geom_density(aes(x=housing_median_age_std, y=..density..), col="red")
+```
+
+
+
+```{r}
+data_test %>%
+  ggplot(aes(x=total_rooms_log, y=..density..))+
+  geom_density(col="blue")+
+  geom_density(aes(x=housing_median_age_log, y=..density..), col="red")
+```
+
+
+
+```{r}
+data_test$total_rooms_std<-(data_test$total_rooms_log - mean(data_test$total_rooms_log, na.rm = T))/sd(data_test$total_rooms_log)
+
+data_test$housing_median_age_std<-(data_test$housing_median_age_log - mean(data_test$housing_median_age_log, na.rm = T))/sd(data_test$housing_median_age_log)
+```
+
+
+
+```{r}
+data_test %>%
+  ggplot(aes(x=total_rooms_std, y=..density..))+
+  geom_density(col="blue")+
+  geom_density(aes(x=housing_median_age_std, y=..density..), col="red")
+```
+
+
+
+```{r}
+data_test %>%
+  ggplot(aes(x=housing_median_age_log, y=..density..))+
+  geom_density(col="blue", lw=1)+
+  theme_minimal()
+```
+
+
+
+
+
+#Modelo de Regresión de Median House Value vrs Median Income
+```{r}
+lm1<-data_train %>%
+  lm(formula = median_house_value ~ median_income_log )
+lm1
+```
+
+```{r}
+data_train %>%
+  ggplot(aes(x=median_income_log, y=median_house_value))+
+  geom_point(col="blue")+
+  geom_abline(intercept = lm1$coefficients[1], slope=lm1$coefficients[2],
+              col="red",
+              lwd=1)+
+  theme_minimal()
+```
+
+
+```{r}
+reg1<-lm(median_house_value ~ median_income_std, data=data_train)
+summary(reg1)
+
+```
+
+```{r}
+sum(lm1$residuals)
+sum(reg1$residuals)
+
+```
+
+
+
+
+
+#Modelo de Grado 2
+```{r}
+lm_1_2<-lm(median_house_value ~ poly(median_income_std, 2), data=data_train)
+summary(lm_1_2)
+```
+
+```{r}
+lm_1_5<-lm(median_house_value ~ poly(median_income_std, 5), data=data_train)
+summary(lm_1_5)
+```
+
+
+```{r}
+lm_1_10<-lm(median_house_value ~ poly(median_income_std, 10), data=data_train)
+summary(lm_1_10)
+```
+
+
+
+
+```{r}
+lm_1_12<-lm(median_house_value ~ poly(median_income_std, 12), data=data_train)
+summary(lm_1_12)
+
+```
+
+
+
+
+```{r}
+bias<-c(mean(lm1$residuals^2),
+        mean(lm_1_2$residuals^2),
+        mean(lm_1_5$residuals^2),
+        mean(lm_1_10$residuals^2),
+        mean(lm_1_12$residuals^2))
+```
+
+
+
+```{r}
+plot(bias, col="blue", type ="b", lwd=2)
+```
+
+
+
+
+```{r}
+preds_1<-predict(object = lm1, newdata = data_test)
+error1<-mean((data_test$median_income_std - preds_1)^2)
+
+preds_2<-predict(object = lm_1_2, newdata = data_test)
+error2<-mean((data_test$median_income_std - preds_2)^2)
+
+preds_5<-predict(object = lm_1_5, newdata = data_test)
+error5<-mean((data_test$median_income_std - preds_5)^2)
+
+preds_10<-predict(object = lm_1_10, newdata = data_test)
+error10<-mean((data_test$median_income_std - preds_10)^2)
+
+preds_12<-predict(object = lm_1_12, newdata = data_test)
+error12<-mean((data_test$median_income_std - preds_12)^2)
+
+
+```
+
+
+
+```{r}
+preds_1
+```
+
+
+
+```{r}
+variance<-c(error1, error2, error5, error10, error12)
+plot(variance, col="red", lwd=2, type = "b")
+```
+
+```{r}
+errorTotal<-(bias + variance)
+
+plot(errorTotal, col="Black", lwd=2, type="b")
+```
+
+
+# Median House Value vrs Median Income
+```{r}
+predict1<-data_train %>%
+  add_predictions(reg1) %>%
+  add_residuals(reg1)
+
+predict1
+```
+
+```{r}
+hist(predict1$resid)
+```
+
+
+```{r}
+mean(predict1$resid)
+```
+
+```{r}
+predict1 %>%
+  ggplot(aes(x = median_income_std, y = median_house_value)) + 
+  geom_point()+ 
+  geom_point() + 
+  geom_smooth(color = "red", se = FALSE)
+```
+
+
+```{r}
+cov(predict1$median_income_std, predict1$median_house_value)
+```
+
+
+#Modelo de Regresión de Median House Value vrs Total Rooms
+```{r}
+lm2<-data_train %>%
+  lm(formula = median_house_value ~ total_rooms_std)
+lm2
+```
+
+
+
+```{r}
+data_train %>%
+  ggplot(aes(x=total_rooms_std, y=median_house_value))+
+  geom_point(col="blue")+
+  geom_abline(intercept = lm2$coefficients[1], slope=lm2$coefficients[2],
+              col="red",
+              lwd=1)+
+  theme_minimal()
+```
+
+
+```{r}
+reg2<-lm(median_house_value ~ total_rooms_std, data=data_train)
+summary(reg2)
+```
+
+```{r}
+sum(lm2$residuals)
+sum(reg2$residuals)
+```
+
+
+#Modelo de Regresión de Median House Value vrs Total Rooms
+```{r}
+lm3<-data_train %>%
+  lm(formula = median_house_value ~ housing_median_age_std)
+lm3
+```
+
+
+
+```{r}
+data_train %>%
+  ggplot(aes(x=housing_median_age_std, y=median_house_value))+
+  geom_point(col="blue")+
+  geom_abline(intercept = lm3$coefficients[1], slope=lm3$coefficients[2],
+              col="red",
+              lwd=1)+
+  theme_minimal()
+```
+
+
+```{r}
+reg3<-lm(median_house_value ~ housing_median_age_std, data=data_train)
+summary(reg3)
+```
+
+
+
+
+#Median House Value vrs total_rooms
+```{r}
+predict2<-data_train %>%
+  add_predictions(reg2) %>%
+  add_residuals(reg2)
+
+predict2
+```
+
+```{r}
+hist(predict2$resid)
+```
+
+```{r}
+mean(predict2$resid)
+```
+
+```{r}
+predict2 %>%
+  ggplot(aes(x = total_rooms_std, y = median_house_value)) + 
+  geom_point()+ 
+  geom_point() + 
+  geom_smooth(color = "red", se = FALSE)
+```
+
+
+
+```{r}
+cov(predict2$total_rooms_std, predict2$median_house_value)
+
+```
+
+
+
+#Median House Value vrs Housing Median Value
+```{r}
+predict3<-data_train %>%
+  add_predictions(reg3) %>%
+  add_residuals(reg3)
+
+predict3
+```
+
+```{r}
+hist(predict3$resid)
+```
+
+
+```{r}
+mean(predict3$resid)
+```
+
+
+```{r}
+predict3 %>%
+  ggplot(aes(x = housing_median_age, y = median_house_value)) + 
+  geom_point()+ 
+  geom_point() + 
+  geom_smooth(color = "red", se = FALSE)
+```
+
+
+```{r}
+cov(predict3$housing_median_age, predict3$median_house_value)
+```
+
+
+
+
+
+
+```{r}
+lm5<-data_train %>%
+  lm(formula = median_house_value ~ median_income_std + total_rooms_std + housing_median_age_std)
+
+summary(lm5)
+```
+
+```{r}
+lm6<-data_train %>%
+  lm(formula = median_house_value ~ median_income_std + total_rooms_std)
+
+summary(lm6)
+```
+
+#Performance del modelo (Capacidad predictiva)
+```{r}
+data_train
+```
+
+```{r}
+lm_data_train<-data_train %>%
+  lm(formula = median_house_value ~ median_income_std, data = .)
+summary(lm_data_train)
+```
+
+```{r}
+data_test
+```
+
+
+
+```{r}
+y_estimado<-predict(object = lm_data_train, newdata = data_test)
+y_estimado
+
+class(y_estimado)
+```
+
+
+
+
+#Metricas de Evaluación RMSE
+```{r}
+RMSE1<-sqrt(mean((y_estimado- data_train$median_house_value)^2))
+RMSE1
+```
+
+
+```{r}
+lm_data_train2<-data_train %>%
+  lm(formula = median_house_value ~ total_rooms_std, data = .)
+y_estimado<-predict(object = lm_data_train2, newdata = data_test)
+RMSE2<-sqrt(mean((y_estimado- data_train$median_house_value)^2))
+RMSE2
+```
+
+
+
+
+```{r}
+lm_data_train3<-data_train %>%
+  lm(formula = median_house_value ~ median_income_std + total_rooms_std, data = .)
+y_estimado<-predict(object = lm_data_train3, newdata = data_test)
+RMSE3<-sqrt(mean((y_estimado- data_train$median_house_value)^2))
+RMSE3
+```
+
+
+
+
+#Tabla Final con Y_Estimado
+```{r}
+data.frame(Identificación = data_test$id, Median_Income = data_test$median_income, Total_Rooms = data_test$total_rooms, yEst = y_estimado)
+
+```
+
+
+
+#Cross-Validation
+```{r}
+#KFolds de K = 5
+KfoldsDriver<-trainControl(method = "cv", number = 5)
+
+lm_K<-train(
+  form = median_house_value ~ median_income_std,
+  data = data_train,
+  trControl = KfoldsDriver,
+  verbo = FALSE)
+
+
+lm_K$results$RMSE
+
+```
+
+```{r}
+y_estimado_K<-predict(object = lm_K, newdata = data_test)
+y_estimado_K
+
+class(y_estimado)
+```
+
+
+
+
+```{r}
+Resultados<-data.frame(id = data_test$id, median_house_value = y_estimado_K)
+Resultados
+
+
+```
+
+
+
+```{r}
+rf <- randomForest(
+  median_house_value ~ . ,
+  data=data_train
+)
+
+print(rf)
+```
+
+
+
+
+```{r}
+resultado <- predict (lm_data_train2, newdata = data_train)
+dataResult <- data.frame(Identificación = data_test$id, Median_Income = data_test$median_income_std, Total_Rooms = data_test$total_rooms_std, yEst = y_estimado)
+RMSE(data_train$median_house_value, resultado)
+```
+
+#Resultados en CSV
+```{r}
+write.csv(Resultados, "EFS_Predicciones.csv", row.names = FALSE)
+```
+
+
+
